@@ -51,10 +51,6 @@
 
 FW_DEFINE_THIS_FILE("System.cpp")
 
-//#define TRAIN_TEST_ACCEL_DECEL
-//#define TRAIN_TEST_FORWARD_BACKWARD
-#define TRAIN_AUTO_REVERSE
-
 namespace APP {
 
 static char const * const timerEvtName[] = {
@@ -112,327 +108,221 @@ QState System::InitialPseudoState(System * const me, QEvt const * const e) {
 }
 
 QState System::Root(System * const me, QEvt const * const e) {
-    QState status;
-    switch (e->sig) {
-    case Q_ENTRY_SIG: {
-        EVENT(e);
-        // Test only
-        Periph::SetupNormal();
-        Evt *evt;
-        evt = new UartActStartReq(UART2_ACT, GET_HSMN(), GEN_SEQ(), &me->m_uart2OutFifo, &me->m_uart2InFifo);
-        me->GetHsm().SaveOutSeq(*evt);
-        Fw::Post(evt);
-
-        //me->m_testTimer.Start(500, Timer::PERIODIC);
-        //evt = new SampleStartReq(SAMPLE, SYSTEM, 0);
-        //Fw::Post(evt);
-
-        // Test only for ATWINC1500 startup test.
-        GPIO_InitTypeDef  GPIO_InitStruct;
-        __HAL_RCC_GPIOE_CLK_ENABLE();
-        GPIO_InitStruct.Pin = GPIO_PIN_14;
-        GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-        GPIO_InitStruct.Pull = GPIO_PULLUP;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
-        HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-        GPIO_InitStruct.Pin = GPIO_PIN_15;
-        HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_14, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_15, GPIO_PIN_RESET);
-
-        status = Q_HANDLED();
-        break;
-    }
-    case Q_EXIT_SIG: {
-        EVENT(e);
-        // Test only.
-        me->m_testTimer.Stop();
-        status = Q_HANDLED();
-        break;
-    }
-#ifdef TRAIN_AUTO_REVERSE
-    case Q_INIT_SIG: {
-        EVENT(e);
-        status = Q_TRAN(&System::Idle);
-        break;
-    }
-#endif
-    case TEST_TIMER: {
-        //EVENT(e);
-        // Test only.
-        static int testcount = 10000;
-        char msg[100];
-        snprintf(msg, sizeof(msg), "This is a UART DMA transmission testing number %d.", testcount++);
-        LOG("Writing %s", msg);
-        /*
-        bool status = false;
-        me->m_uartOutFifo.WriteNoCrit((uint8_t *)msg, strlen(msg), &status);
-        Evt *evt = new Evt(UART_OUT_WRITE_REQ, UART2_OUT, GET_HSMN());
-        Fw::Post(evt);
-        */
-
-        static uint32_t speed = 100;
-        static bool up = true;
-        static uint32_t stableCounter = 0;
-        if (stableCounter) {
-            stableCounter--;
-
-        } else {
-            if (up) {
-                speed += 1;
-                if (speed >= 800) {
-                    up = false;
-                    stableCounter = 2400; // 120s
-                }
-            } else {
-                speed -= 2;
-                if (speed <= 100) {
-                    up = true;
-                    stableCounter = 600; // 30s
-                }
-            }
-        }
-        Evt *evt = new LedLevelReq(LED0, GET_HSMN(), GEN_SEQ(), speed);
-        Fw::Post(evt);
-
-        status = Q_HANDLED();
-        break;
-    }
-    case UART_ACT_START_CFM: {
-        EVENT(e);
-        ErrorEvt const &cfm = ERROR_EVT_CAST(*e);
-        if (me->GetHsm().MatchOutSeq(cfm)) {
-            if (cfm.GetError() == ERROR_SUCCESS) {
-                if(me->GetHsm().IsOutSeqAllCleared()) {
-                    LOG("UARTs started successfully");
-                    Log::AddInterface(UART2_OUT, &me->m_uart2OutFifo, UART_OUT_WRITE_REQ);
-
-                    //me->m_testTimer.Start(2000, Timer::PERIODIC);
-
-                    Evt *evt = new SampleStartReq(SAMPLE, SYSTEM, 0);
-                    Fw::Post(evt);
-                    evt = new BtnStartReq(SEL_BTN, GET_HSMN(), GEN_SEQ());
-                    Fw::Post(evt);
-                    evt = new LedStartReq(LED0, GET_HSMN(), GEN_SEQ());
-                    Fw::Post(evt);
-                    evt = new LedStartReq(LED1, GET_HSMN(), GEN_SEQ());
-                    Fw::Post(evt);
-                }
-            }
-        }
-        status = Q_HANDLED();
-        break;
-    }
-    case BTN_UP_IND: {
-        EVENT(e);
-        // Commented for testing.
-        //Evt *evt = new LedOffReq(LED0, GET_HSMN(), GEN_SEQ());
-        //Fw::Post(evt);
-        status = Q_HANDLED();
-        break;  
-    }
-    case BTN_DOWN_IND: {
-        EVENT(e);
-
-        // Test only - for ATWINC1500 startup sequence.
-        /*
-        static bool atwinc1500Startup = false;
-        if (atwinc1500Startup == false) {
-            atwinc1500Startup = true;
-            HAL_Delay(100);
-            HAL_GPIO_WritePin(GPIOE, GPIO_PIN_14, GPIO_PIN_SET);
-            HAL_Delay(100);
-            HAL_GPIO_WritePin(GPIOE, GPIO_PIN_15, GPIO_PIN_SET);
-        }
-        */
-
-#ifdef TRAIN_TEST_ACCEL_DECEL
-        // For motor control test.
-        static bool once = false;
-        if (!once) {
-            once = true;
-            me->m_testTimer.Start(50, Timer::PERIODIC);
-            Evt *evt = new LedOnReq(LED0, GET_HSMN(), GEN_SEQ());
-            Fw::Post(evt);
-        }
-#endif // TRAIN_TEST_ACCEL_DECEL
-
-#ifdef TRAIN_TEST_FORWARD_BACKWARD
-      static bool forward = true;
-      Evt *evt;
-      if (forward) {
-          evt = new LedLevelReq(LED0, GET_HSMN(), GEN_SEQ(), 300);
-          Fw::Post(evt);
-          evt = new LedLevelReq(LED1, GET_HSMN(), GEN_SEQ(), 0);
-          Fw::Post(evt);
-      } else {
-          evt = new LedLevelReq(LED1, GET_HSMN(), GEN_SEQ(), 300);
-          Fw::Post(evt);
-          evt = new LedLevelReq(LED0, GET_HSMN(), GEN_SEQ(), 0);
-          Fw::Post(evt);
-      }
-      evt = new LedOnReq(LED0, GET_HSMN(), GEN_SEQ());
-      Fw::Post(evt);
-      evt = new LedOnReq(LED1, GET_HSMN(), GEN_SEQ());
-      Fw::Post(evt);
-      forward = !forward;
-#endif
-
-        status = Q_HANDLED();
-        break;  
-    }
-    case LED_ON_CFM:
-    case LED_OFF_CFM: {
-        EVENT(e);
-        status = Q_HANDLED();
-        break;    
-    }
-    default: {
-        status = Q_SUPER(&QHsm::top);
-        break;
-    }
-    }
-    return status;
-}
-
-QState System::Idle(System * const me, QEvt const * const e) {
-    QState status;
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
+            // Test only
+            Periph::SetupNormal();
+            Evt *evt;
+            evt = new UartActStartReq(UART2_ACT, GET_HSMN(), GEN_SEQ(), &me->m_uart2OutFifo, &me->m_uart2InFifo);
+            me->GetHsm().SaveOutSeq(*evt);
+            Fw::Post(evt);
+
+            //me->m_testTimer.Start(500, Timer::PERIODIC);
+            //evt = new SampleStartReq(SAMPLE, SYSTEM, 0);
+            //Fw::Post(evt);
+
+            // Test only for ATWINC1500 startup test.
+            GPIO_InitTypeDef  GPIO_InitStruct;
+            __HAL_RCC_GPIOE_CLK_ENABLE();
+            GPIO_InitStruct.Pin = GPIO_PIN_14;
+            GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+            GPIO_InitStruct.Pull = GPIO_PULLUP;
+            GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
+            HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+            GPIO_InitStruct.Pin = GPIO_PIN_15;
+            HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+            HAL_GPIO_WritePin(GPIOE, GPIO_PIN_14, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOE, GPIO_PIN_15, GPIO_PIN_RESET);
+
             me->m_forward = true;
-            me->m_speed = 0;
             me->m_runTime = MAX_RUNTIME;
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case Q_EXIT_SIG: {
             EVENT(e);
-            status = Q_HANDLED();
-            break;
+            // Test only.
+            me->m_testTimer.Stop();
+            return Q_HANDLED();
+        }
+        case Q_INIT_SIG: {
+            EVENT(e);
+            return Q_TRAN(&System::Idle);
+        }
+        case TEST_TIMER: {
+            //EVENT(e);
+            // Test only.
+            static int testcount = 10000;
+            char msg[100];
+            snprintf(msg, sizeof(msg), "This is a UART DMA transmission testing number %d.", testcount++);
+            LOG("Writing %s", msg);
+            /*
+            bool status = false;
+            me->m_uartOutFifo.WriteNoCrit((uint8_t *)msg, strlen(msg), &status);
+            Evt *evt = new Evt(UART_OUT_WRITE_REQ, UART2_OUT, GET_HSMN());
+            Fw::Post(evt);
+            */
+            return Q_HANDLED();
+        }
+        case UART_ACT_START_CFM: {
+            EVENT(e);
+            ErrorEvt const &cfm = ERROR_EVT_CAST(*e);
+            if (me->GetHsm().MatchOutSeq(cfm)) {
+                if (cfm.GetError() == ERROR_SUCCESS) {
+                    if(me->GetHsm().IsOutSeqAllCleared()) {
+                        LOG("UARTs started successfully");
+                        Log::AddInterface(UART2_OUT, &me->m_uart2OutFifo, UART_OUT_WRITE_REQ);
+
+                        //me->m_testTimer.Start(2000, Timer::PERIODIC);
+
+                        Evt *evt = new SampleStartReq(SAMPLE, SYSTEM, 0);
+                        Fw::Post(evt);
+                        evt = new BtnStartReq(SEL_BTN, GET_HSMN(), GEN_SEQ());
+                        Fw::Post(evt);
+                        evt = new LedStartReq(LED0, GET_HSMN(), GEN_SEQ());
+                        Fw::Post(evt);
+                        evt = new LedStartReq(LED1, GET_HSMN(), GEN_SEQ());
+                        Fw::Post(evt);
+                    }
+                }
+            }
+            return Q_HANDLED();
+        }
+        case BTN_UP_IND: {
+            EVENT(e);
+            // Commented for testing.
+            //Evt *evt = new LedOffReq(LED0, GET_HSMN(), GEN_SEQ());
+            //Fw::Post(evt);
+            return Q_HANDLED();
         }
         case BTN_DOWN_IND: {
             EVENT(e);
+
+            // Test only - for ATWINC1500 startup sequence.
+            /*
+            static bool atwinc1500Startup = false;
+            if (atwinc1500Startup == false) {
+                atwinc1500Startup = true;
+                HAL_Delay(100);
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_14, GPIO_PIN_SET);
+                HAL_Delay(100);
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_15, GPIO_PIN_SET);
+            }
+            */
+            return Q_HANDLED();
+        }
+        case LED_ON_CFM:
+        case LED_OFF_CFM: {
+            EVENT(e);
+            return Q_HANDLED();
+        }
+    }
+    return Q_SUPER(&QHsm::top);
+}
+
+QState System::Idle(System * const me, QEvt const * const e) {
+    switch (e->sig) {
+        case Q_ENTRY_SIG: {
+            EVENT(e);
+            me->m_speed = 0;
+            return Q_HANDLED();
+        }
+        case Q_EXIT_SIG: {
+            EVENT(e);
+            return Q_HANDLED();
+        }
+        case BTN_DOWN_IND: {
+            EVENT(e);
+            me->m_speed = START_SPEED;
             me->SetSpeed(me->m_forward, me->m_speed);
             Evt *evt = new LedOnReq(LED0, GET_HSMN(), GEN_SEQ());
             Fw::Post(evt);
             evt = new LedOnReq(LED1, GET_HSMN(), GEN_SEQ());
             Fw::Post(evt);
-            status = Q_TRAN(&System::Accel);
-            break;
-        }
-        default: {
-            status = Q_SUPER(&System::Root);
-            break;
+            return Q_TRAN(&System::Accel);
         }
     }
-    return status;
+    return Q_SUPER(&System::Root);;
 }
 
-QState System::Accel(System * const me, QEvt const * const e) {
-    QState status;
+QState System::Activated(System * const me, QEvt const * const e) {
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
-            me->m_speed = START_SPEED;
+            return Q_HANDLED();
+        }
+        case Q_EXIT_SIG: {
+            EVENT(e);
+            return Q_HANDLED();
+        }
+        case Q_INIT_SIG: {
+            EVENT(e);
+            return Q_TRAN(&System::Accel);
+        }
+        case BTN_DOWN_IND: {
+            EVENT(e);
+            return Q_TRAN(&System::ToIdle);
+        }
+    }
+    return Q_SUPER(&System::Root);
+}
+
+QState System::Accel(System * const me, QEvt const * const e) {
+    switch (e->sig) {
+        case Q_ENTRY_SIG: {
+            EVENT(e);
             me->m_speedTimer.Start(SPEED_INTERVAL_MS, Timer::PERIODIC);
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case Q_EXIT_SIG: {
             EVENT(e);
             me->m_speedTimer.Stop();
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case SPEED_TIMER: {
             if (me->m_speed < MAX_SPEED) {
                 me->m_speed += SPEED_STEP;
                 me->SetSpeed(me->m_forward, me->m_speed);
-
-                /*
-                Evt *evt;
-                if (me->m_forward) {
-                    evt = new LedLevelReq(LED0, GET_HSMN(), GEN_SEQ(), 300);
-                    Fw::Post(evt);
-                    evt = new LedLevelReq(LED1, GET_HSMN(), GEN_SEQ(), 0);
-                    Fw::Post(evt);
-                } else {
-                    evt = new LedLevelReq(LED1, GET_HSMN(), GEN_SEQ(), 300);
-                    Fw::Post(evt);
-                    evt = new LedLevelReq(LED0, GET_HSMN(), GEN_SEQ(), 0);
-                    Fw::Post(evt);
-                }
-                evt = new LedOnReq(LED0, GET_HSMN(), GEN_SEQ());
-                Fw::Post(evt);
-                evt = new LedOnReq(LED1, GET_HSMN(), GEN_SEQ());
-                Fw::Post(evt);
-                */
-
-
-                status = Q_HANDLED();
+                return Q_HANDLED();
             } else {
-                status = Q_TRAN(&System::Const);
+                return Q_TRAN(&System::Const);
             }
-            break;
-        }
-        default: {
-            status = Q_SUPER(&System::Root);
-            break;
         }
     }
-    return status;
+    return Q_SUPER(&System::Activated);
 }
 
 QState System::Const(System * const me, QEvt const * const e) {
-    QState status;
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
             me->m_runTimer.Start(me->m_runTime);
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case Q_EXIT_SIG: {
             EVENT(e);
             me->m_runTimer.Stop();
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case RUN_TIMER: {
             EVENT(e);
-            status = Q_TRAN(&System::Decel);
-            break;
-        }
-        case BTN_DOWN_IND: {
-            EVENT(e);
-            FW_ASSERT(me->m_runTime >= me->m_runTimer.ctr());
-            me->m_runTime = me->m_runTime - me->m_runTimer.ctr();
-            status = Q_TRAN(&System::Decel);
-            break;
-        }
-        default: {
-            status = Q_SUPER(&System::Root);
-            break;
+            return Q_TRAN(&System::ToRest);
         }
     }
-    return status;
+    return Q_SUPER(&System::Activated);
 }
 
 QState System::Decel(System * const me, QEvt const * const e) {
-    QState status;
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
             me->m_speedTimer.Start(SPEED_INTERVAL_MS, Timer::PERIODIC);
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case Q_EXIT_SIG: {
             EVENT(e);
             me->m_speedTimer.Stop();
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case SPEED_TIMER: {
             if (me->m_speed > 0) {
@@ -442,46 +332,74 @@ QState System::Decel(System * const me, QEvt const * const e) {
                     me->m_speed -= SPEED_STEP;
                 }
                 me->SetSpeed(me->m_forward, me->m_speed);
-                status = Q_HANDLED();
+                return Q_HANDLED();
             } else {
-                status = Q_TRAN(&System::Rest);
+                me->m_forward = !me->m_forward;
+                return Q_TRAN(&System::Rest);
             }
-            break;
-        }
-        default: {
-            status = Q_SUPER(&System::Root);
-            break;
         }
     }
-    return status;
+    return Q_SUPER(&System::Activated);
 }
 
-QState System::Rest(System * const me, QEvt const * const e) {
-    QState status;
+
+QState System::ToRest(System * const me, QEvt const * const e) {
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
-            me->m_forward = !me->m_forward;
-            me->m_restTimer.Start(REST_TIME);
-            status = Q_HANDLED();
+            return Q_HANDLED();
+        }
+        case Q_EXIT_SIG: {
+            EVENT(e);
+            return Q_HANDLED();
+        }
+    }
+    return Q_SUPER(&System::Decel);
+}
+
+QState System::ToIdle(System * const me, QEvt const * const e) {
+    switch (e->sig) {
+        case Q_ENTRY_SIG: {
+            EVENT(e);
+            return Q_HANDLED();
+        }
+        case Q_EXIT_SIG: {
+            EVENT(e);
+            return Q_HANDLED();
+        }
+        case SPEED_TIMER: {
+            if (me->m_speed == 0) {
+                me->m_forward = !me->m_forward;
+                Evt *evt = new LedOffReq(LED0, GET_HSMN(), GEN_SEQ());
+                Fw::Post(evt);
+                evt = new LedOffReq(LED1, GET_HSMN(), GEN_SEQ());
+                Fw::Post(evt);
+                return Q_TRAN(&System::Idle);
+            }
+            // Lets parent state handle it.
             break;
+        }
+    }
+    return Q_SUPER(&System::Decel);
+}
+
+QState System::Rest(System * const me, QEvt const * const e) {
+    switch (e->sig) {
+        case Q_ENTRY_SIG: {
+            EVENT(e);
+            me->m_restTimer.Start(REST_TIME);
+            return Q_HANDLED();
         }
         case Q_EXIT_SIG: {
             EVENT(e);
             me->m_restTimer.Stop();
-            status = Q_HANDLED();
-            break;
+            return Q_HANDLED();
         }
         case REST_TIMER: {
-            status = Q_TRAN(&System::Accel);
-            break;
-        }
-        default: {
-            status = Q_SUPER(&System::Root);
-            break;
+            return Q_TRAN(&System::Accel);
         }
     }
-    return status;
+    return Q_SUPER(&System::Activated);
 }
 
 } // namespace APP

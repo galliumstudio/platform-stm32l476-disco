@@ -115,8 +115,11 @@ void Timer::Stop() {
         eQueue->postLIFO(frontEvt);
         // Since QEQueue::get() does not decrement reference counter, we need to
         // decrement it explicitly after postLIFO() increments it again.
-        FW_ASSERT(QF_EVT_REF_CTR_(frontEvt) > 1);
-        QF_EVT_REF_CTR_DEC_(frontEvt);
+        // We must only do it for dynamic events.
+        if (QF_EVT_POOL_ID_(frontEvt) != 0) {
+            FW_ASSERT(QF_EVT_REF_CTR_(frontEvt) > 1);
+            QF_EVT_REF_CTR_DEC_(frontEvt);
+        }
         // Remove timer event in queue storage if it is used.
         if (eQueue->getNFree() < queueCount) {
             for (uint16_t i = 0; i < queueCount; i++) {

@@ -58,10 +58,13 @@ protected:
     static QState InitialPseudoState(System * const me, QEvt const * const e);
     static QState Root(System * const me, QEvt const * const e);
         static QState Idle(System * const me, QEvt const * const e);
-        static QState Accel(System * const me, QEvt const * const e);
-        static QState Const(System * const me, QEvt const * const e);
-        static QState Decel(System * const me, QEvt const * const e);
-        static QState Rest(System * const me, QEvt const * const e);
+        static QState Activated(System * const me, QEvt const * const e);
+            static QState Accel(System * const me, QEvt const * const e);
+            static QState Const(System * const me, QEvt const * const e);
+            static QState Decel(System * const me, QEvt const * const e);
+                static QState ToRest(System * const me, QEvt const * const e);
+                static QState ToIdle(System * const me, QEvt const * const e);
+            static QState Rest(System * const me, QEvt const * const e);
 
     static void SetupPeriphNormal();
     static void SetupPeriphLow();
@@ -79,12 +82,12 @@ protected:
     Fifo m_uart2OutFifo;
     Fifo m_uart2InFifo;
     enum {
-        MAX_RUNTIME = 10000, // 300000
+        MAX_RUNTIME = 60000, // 300000
         START_SPEED  = 90,
         STOP_SPEED = 70,
-        MAX_SPEED   = 900, //400,
-        SPEED_STEP  = 1, //5,
-        SPEED_INTERVAL_MS = 25, //500,
+        MAX_SPEED   = 600, //400,
+        SPEED_STEP  = 5, //5,
+        SPEED_INTERVAL_MS = 10, //500,
         REST_TIME   = 1000
     };
     bool m_forward;
