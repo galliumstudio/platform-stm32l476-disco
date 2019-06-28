@@ -43,25 +43,21 @@
 #include "qpcpp.h"
 #include "fw_evt.h"
 #include "fw_map.h"
+#include "fw_maptype.h"
 #include "fw_def.h"
 
 namespace FW {
 
-class Active;
-class Hsm;
-
-typedef KeyValue<Hsm *, Active *> HsmAct;
-typedef Map<Hsm *, Active *> HsmActMap;
-
 class Fw {
 public:
     static void Init();
-    static void Add(Hsmn hsmn, Hsm *hsm, Active *container);
+    static void Add(Hsmn hsmn, Hsm *hsm, QP::QActive *container);
     static void Post(Evt const *e);
     static Hsm *GetHsm(Hsmn hsmn);
-    static Active *GetContainer(Hsmn hsmn);
+    static QP::QActive *GetContainer(Hsmn hsmn);
 
 protected:
+
     enum {
         EVT_POOL_COUNT = 3,     // Number of event pools (small, medium and large).
         EVT_SIZE_SMALL = 32,

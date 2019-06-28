@@ -53,7 +53,6 @@ uint32_t Fw::m_evtPoolSmall[ROUND_UP_DIV_4(EVT_SIZE_SMALL * EVT_COUNT_SMALL)];
 uint32_t Fw::m_evtPoolMedium[ROUND_UP_DIV_4(EVT_SIZE_MEDIUM * EVT_COUNT_MEDIUM)];
 uint32_t Fw::m_evtPoolLarge[ROUND_UP_DIV_4(EVT_SIZE_LARGE * EVT_COUNT_LARGE)];
 
-
 void Fw::Init() {
     // Initialize QP. It must be done before BspInit() since the latter may enable
     // SysTick which will cause the scheduler to run.
@@ -70,7 +69,7 @@ void Fw::Init() {
 // By design there is no "Remove" function. All HSM's are to be created and added
 // to the framework during system initialization (in main()).
 // As a result there is no need to implement critical sections in other API functions.
-void Fw::Add(Hsmn hsmn, Hsm *hsm, Active *container) {
+void Fw::Add(Hsmn hsmn, Hsm *hsm, QActive *container) {
     FW_ASSERT(hsmn != HSM_UNDEF && hsm && container);
     QF_CRIT_STAT_TYPE crit;
     QF_CRIT_ENTRY(crit);
@@ -83,7 +82,7 @@ void Fw::Add(Hsmn hsmn, Hsm *hsm, Active *container) {
 // If the HSM to post to is invalid, e.g. HSM_UNDEF, the event will be discarded.
 void Fw::Post(Evt const *e) {
     FW_ASSERT(e);
-    Active *act = m_hsmActMap.GetByIndex(e->GetTo())->GetValue();
+    QActive *act = m_hsmActMap.GetByIndex(e->GetTo())->GetValue();
     if (act) {
         act->post_(e, 0);
     } else {
@@ -97,7 +96,7 @@ Hsm *Fw::GetHsm(Hsmn hsmn) {
 }
 
 // Allow HSM_UNDEF which returns NULL.
-Active *Fw::GetContainer(Hsmn hsmn) {
+QActive *Fw::GetContainer(Hsmn hsmn) {
     return m_hsmActMap.GetByIndex(hsmn)->GetValue();
 }
 

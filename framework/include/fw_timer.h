@@ -62,6 +62,15 @@ public:
     void Restart(uint32_t timeoutMs, Type type = ONCE);
 
 protected:
+    bool IsMatch(QEvt const *other) {
+        // For a match, both the signal and the associated hsmn must match
+        // since the same signal can be used by multiple region instances.
+        // Note if sig matches, it is guaranteed that 'other' is a timer event,
+        // so casting is safe.
+        return (other->sig == sig) &&
+               (static_cast<Timer const *>(other)->GetHsmn() == m_hsmn);
+    }
+
     Hsmn m_hsmn;
 };
 

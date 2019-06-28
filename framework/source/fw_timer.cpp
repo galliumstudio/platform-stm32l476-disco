@@ -40,34 +40,17 @@
 #include "qpcpp.h"
 #include "fw_active.h"
 #include "fw_timer.h"
+#include "fw_inline.h"
 #include "fw_assert.h"
 
 FW_DEFINE_THIS_FILE("fw_timer.cpp")
 
 using namespace QP;
 
-// Include the following inline functions defined in ../qpcpp/source/qf_pkg.h.
-// They are required to access private members of QEvt.
-// Alternatively we can include ../qpcpp/source/qf_pkg.h. But that header file
-// was intended for internal use within qpcpp.
-
-//! helper macro to cast const away from an event pointer @p e_
-#define QF_EVT_CONST_CAST_(e_) const_cast<QEvt *>(e_)
-namespace QP {
-//! access to the poolId_ of an event @p e
-inline uint8_t QF_EVT_POOL_ID_(QEvt const * const e) { return e->poolId_; }
-//! access to the refCtr_ of an event @p e
-inline uint8_t QF_EVT_REF_CTR_(QEvt const * const e) { return e->refCtr_; }
-//! decrement the refCtr_ of an event @p e
-inline void QF_EVT_REF_CTR_DEC_(QEvt const * const e) {
-    --(QF_EVT_CONST_CAST_(e))->refCtr_;
-}
-} // namespace QP
-
 namespace FW {
 
-// The timer signal does not matter here, since the hsmn is undefined.
-// The event will be discarded by Active::dispatch().
+// The timer signal is set to Q_USER_SIG which is associated with an undefined HSM.
+// It will be discarded by Active::dispatch().
 // The signal is set to Q_USER_SIG in case the QTimeEvt constructor asserts (signal >= Q_USER_SIG).
 Timer const CANCELED_TIMER(HSM_UNDEF, Q_USER_SIG);
 
@@ -79,7 +62,7 @@ Timer::Timer(Hsmn hsmn, QP::QSignal signal) :
 
 void Timer::Start(uint32_t timeoutMs, Type type) {
     QTimeEvtCtr timeoutTick = ROUND_UP_DIV(timeoutMs, BSP_MSEC_PER_TICK);
-    Active *act = Fw::GetContainer(m_hsmn);
+    QActive *act = Fw::GetContainer(m_hsmn);
     FW_ASSERT(act && (type < INVALID));
     if (type == ONCE) {
         QTimeEvt::postIn(act, timeoutTick);
@@ -93,12 +76,12 @@ void Timer::Stop() {
     // a previous timeout event might still be in event queue and must be removed.
     // In any cases we need to purge residue timer events in event queue.
     QTimeEvt::disarm();
-    Active *act = Fw::GetContainer(m_hsmn);
+    QActive *act = Fw::GetContainer(m_hsmn);
     FW_ASSERT(act);
     QEQueue *eQueue = &act->m_eQueue;
     FW_ASSERT(eQueue);
-    uint16_t queueCount = 0;
-    QEvt const **queueStor = act->GetEvtQueueStor(&queueCount);
+    QEQueueCtr queueCount = 0;
+    QEvt const **queueStor = eQueue->getStor(&queueCount);
     FW_ASSERT(queueStor && queueCount);
     // Critical section must support nesting.
     QF_CRIT_STAT_TYPE crit;
@@ -106,9 +89,10 @@ void Timer::Stop() {
     // Remove timer event in front of queue.
     QEvt const * frontEvt = eQueue->get();
     if (frontEvt) {
-        if (frontEvt->sig == sig) {
-            // Timer event is static.
-            FW_ASSERT(QF_EVT_POOL_ID_(frontEvt) == 0);
+        // Check if a queued event matches the timer event being stopped.
+        if (IsMatch(frontEvt)) {
+            // frontEvt must be a timer event and static.
+            FW_ASSERT(IS_TIMER_EVT(frontEvt->sig) && QF_EVT_POOL_ID_(frontEvt) == 0);
             frontEvt = &CANCELED_TIMER;
         }
         // Put back front event.
@@ -121,12 +105,16 @@ void Timer::Stop() {
             QF_EVT_REF_CTR_DEC_(frontEvt);
         }
         // Remove timer event in queue storage if it is used.
+        // Note queueCount does NOT include frontEvt while getNFree() does include frontEvt.
+        // Since here frontEvt must be used, max of getNFree() is queueCount.
+        // If getNFree() < queueCount, one or more of queue storage must be in use.
+        // If a match is found, it is replaced with CANCELED_TIMER regardless to whether
+        // it is actually being used of not.
         if (eQueue->getNFree() < queueCount) {
-            for (uint16_t i = 0; i < queueCount; i++) {
-                if (queueStor[i]->sig == sig) {
-                    // Timer event is static.
-                    FW_ASSERT(QF_EVT_POOL_ID_(queueStor[i]) == 0);
-                    // Stub the removed event with a dummy event.
+            for (QEQueueCtr i = 0; i < queueCount; i++) {
+                if (IsMatch(queueStor[i])) {
+                    // Matched event must be a timer event and static.
+                    FW_ASSERT(IS_TIMER_EVT(queueStor[i]->sig) && QF_EVT_POOL_ID_(queueStor[i]) == 0);
                     queueStor[i] = &CANCELED_TIMER;
                 }
             }

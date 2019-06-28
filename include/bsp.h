@@ -48,6 +48,7 @@
 
 #define BSP_TICKS_PER_SEC            (1000)
 #define BSP_MSEC_PER_TICK            (1000 / BSP_TICKS_PER_SEC)
+#define BSP_MSEC_TO_TICK(ms_)        ((ms_) / BSP_MSEC_PER_TICK)
 
 enum KernelUnawareISRs { // see NOTE00
     // ...
@@ -78,5 +79,6 @@ Q_ASSERT_COMPILE(MAX_KERNEL_AWARE_CMSIS_PRI <= (0xFF >>(8-__NVIC_PRIO_BITS)));
 void BspInit();
 void BspWrite(char const *buf, uint32_t len);
 uint32_t GetSystemMs();
+uint32_t GetIdleCnt();
 
 #endif // BSP_H
