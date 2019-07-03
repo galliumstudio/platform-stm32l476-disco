@@ -49,14 +49,17 @@ TimHalMap Periph::m_timHalMap(m_timHalStor, ARRAY_COUNT(m_timHalStor), TimHal(NU
 
 TIM_HandleTypeDef Periph::m_tim1Hal;
 TIM_HandleTypeDef Periph::m_tim2Hal;
+TIM_HandleTypeDef Periph::m_tim3Hal;
 // Add more HAL handles here.
 
 // Setup common peripherals for normal power mode.
 // These common peripherals are shared among different HW blocks and cannot be setup individually
 // USART2 - TX PD.5 DMA1 Channel 7 Request 2
 //          RX PD.6 DMA1 Channel 6 Request 2
-// LED0 - PE.8 PWM TIM1 Channel 1
-//
+// PWM0 - PE.8 PWM TIM1 Channel 1
+// PWM1 - PB.14 PWM TIM1 Channel 2
+// BUTTON - PA.0
+
 // TIM1 configuration:
 // APB1CLK = HCLK -> TIM1CLK = HCLK = SystemCoreClock (See "clock tree" and "timer clock" in ref manual.)
 #define TIM1CLK             (SystemCoreClock)   // 80MHz
@@ -64,6 +67,7 @@ TIM_HandleTypeDef Periph::m_tim2Hal;
 #define TIM1_PWM_FREQ       (20000)            // 10kHz
 
 void Periph::SetupNormal() {
+    __GPIOA_CLK_ENABLE();
     __GPIOB_CLK_ENABLE();
     __GPIOD_CLK_ENABLE();
     __GPIOE_CLK_ENABLE();
@@ -94,11 +98,11 @@ void Periph::Reset() {
     HAL_TIM_PWM_DeInit(&m_tim1Hal);
     __HAL_RCC_TIM1_CLK_DISABLE();
     __HAL_RCC_DMA1_CLK_DISABLE();
-    __GPIOB_CLK_DISABLE();
-    __GPIOD_CLK_DISABLE();
     __GPIOE_CLK_DISABLE();
+    __GPIOD_CLK_DISABLE();
+    __GPIOB_CLK_DISABLE();
+    __GPIOA_CLK_DISABLE();
     // TBD.
 }
-
 
 } // namespace APP

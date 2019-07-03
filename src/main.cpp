@@ -78,15 +78,21 @@
 #include "bsp.h"
 #include "app_hsmn.h"
 #include "fw.h"
+#include "fw_macro.h"
 #include "fw_log.h"
 #include "fw_assert.h"
+#include "Console.h"
 #include "System.h"
-#include "Sample.h"
-#include "SampleInterface.h"
+#include "GpioInAct.h"
+#include "CompositeAct.h"
+#include "SimpleAct.h"
+#include "Demo.h"
+#include "GpioOutAct.h"
 #include "UartAct.h"
-#include "UartActInterface.h"
-#include "BtnGrp.h"
-#include "LedGrp.h"
+
+#include "SystemInterface.h"
+#include "ConsoleInterface.h"
+#include "ConsoleCmd.h"
 
 FW_DEFINE_THIS_FILE("main.cpp")
 
@@ -105,10 +111,14 @@ using namespace APP;
 // Todo - Create a memory pool for DMA use, with cache disabled.
 //static System system  __attribute__ ((section (".dmatest")));
 static System sys;
-static Sample sample;
-static UartAct uart2Act(UART2_ACT, "UART2_ACT", "UART2_IN", "UART2_OUT");
-static BtnGrp btnGrp;
-static LedGrp ledGrp;
+static Console consoleUart2(CONSOLE_UART2, "CONSOLE_UART2", "CMD_INPUT_UART2", "CMD_PARSER_UART2");
+static CompositeAct compositeAct;
+static SimpleAct simpleAct;
+static Demo demo;
+
+static GpioOutAct gpioOutAct;
+static GpioInAct gpioInAct;
+static UartAct uartAct2(UART2_ACT, "UART2_ACT", "UART2_IN", "UART2_OUT");
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
@@ -128,24 +138,30 @@ int main(void)
     // Initialize QP, framework and BSP (including HAL).
     Fw::Init();
     // Configure log settings.
-    Log::SetVerbosity(5);
-    //Log::SetVerbosity(0);
+    Log::SetVerbosity(4);
     Log::OnAll();
-    //Log::Off(SYSTEM);
-    //Log::Off(SAMPLE);
-    //Log::Off(SAMPLE_REG0);
-    //Log::Off(SAMPLE_REG1);
-    //Log::Off(SAMPLE_REG2);
-    //Log::Off(SAMPLE_REG3);
-    //Log::Off(LED1);
+    Log::Off(UART2_IN);
     Log::Off(UART2_OUT);
+    Log::Off(CMD_INPUT_UART2);
+    Log::Off(CMD_PARSER_UART2);
+    Log::Off(CONSOLE_UART2);
 
     // Start active objects.
-    sample.Start(PRIO_SAMPLE);
-    uart2Act.Start(PRIO_UART2_ACT);
-    btnGrp.Start(PRIO_BTN_GRP);
-    ledGrp.Start(PRIO_LED_GRP);
-    sys.Start(PRIO_SYSTEM);    
+    compositeAct.Start(PRIO_COMPOSITE_ACT);
+    simpleAct.Start(PRIO_SIMPLE_ACT);
+    demo.Start(PRIO_DEMO);
+    gpioOutAct.Start(PRIO_GPIO_OUT_ACT);
+    gpioInAct.Start(PRIO_GPIO_IN_ACT);
+    uartAct2.Start(PRIO_UART2_ACT);
+    consoleUart2.Start(PRIO_CONSOLE_UART2);
+    sys.Start(PRIO_SYSTEM);
+
+    // Kick off the topmost active objects.
+    Evt *evt;
+    evt = new ConsoleStartReq(CONSOLE_UART2, HSM_UNDEF, 0, ConsoleCmd, UART2_ACT, true); //true);
+    Fw::Post(evt);
+    evt = new SystemStartReq(SYSTEM, HSM_UNDEF, 0);
+    Fw::Post(evt);
     return QP::QF::run();
 }
 
@@ -187,8 +203,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLQ = 4;
   if(HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
-    /* Initialization Error */
-    while(1);
+    Error_Handler();
   }
   
   /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 
@@ -200,8 +215,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;  
   if(HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
-    /* Initialization Error */
-    while(1);
+    Error_Handler();
   }
 }
 

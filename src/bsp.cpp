@@ -42,19 +42,30 @@
 
 Q_DEFINE_THIS_FILE
 
+// Define this to enable debug print before UartAct objects are initialized.
+// Debug messages are printed using HAL directly without DMA. This slows down the
+// boot up process but allows all debug message to be seen since boot up.
 #define ENABLE_BSP_PRINT
+
+static volatile uint32_t idleCnt = 0;
 
 static UART_HandleTypeDef usart;
 
 /* top of stack (highest address) defined in the linker script -------------*/
 extern int _estack;
 
-void BspInit() {
-    // STM32F7xx HAL library initialization
-    HAL_Init();
+static void InitUart() {
+    // USART2 (TX=PD5, RX=PD6) is used as the virtual COM port in ST-Link.
+    __HAL_RCC_USART2_CLK_ENABLE();          // Customize.
+    __GPIOD_CLK_ENABLE();                   // Customize.
+    GPIO_InitTypeDef  gpioInit;
+    gpioInit.Pin       = GPIO_PIN_5;        // Customize.
+    gpioInit.Mode      = GPIO_MODE_AF_PP;   // Customize.
+    gpioInit.Alternate = GPIO_AF7_USART2;   // Customize.
+    gpioInit.Pull      = GPIO_PULLUP;
+    gpioInit.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOD, &gpioInit);
 
-#ifdef ENABLE_BSP_PRINT
-    // USART3 (TX=PD8, RX=PD9) is used as the virtual COM port in ST-Link.
     usart.Instance = USART2;
     usart.Init.BaudRate = 115200;
     usart.Init.WordLength = UART_WORDLENGTH_8B;
@@ -63,22 +74,53 @@ void BspInit() {
     usart.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
     usart.Init.Mode = UART_MODE_TX_RX;
     HAL_UART_Init(&usart);
-    char const *test = "BspInit success\n\r";
-    BspWrite(test, strlen(test));
+}
+
+static void WriteUart(char const *buf, uint32_t len) {
+    HAL_UART_Transmit(&usart, (uint8_t *)buf, len, 0xFFFF);
+}
+
+void BspInit() {
+    // STM32F7xx HAL library initialization
+    HAL_Init();
+
+#ifdef ENABLE_BSP_PRINT
+    InitUart();
 #endif // ENABLE_BSP_PRINT
 
+    char *testStr = "BspInit success\n\r";
+    BspWrite(testStr, strlen(testStr));
+
     // Gallium Test only. For GPIO debugging.
-    BSP_LED_Init(LED4);
+    //BSP_LED_Init(LED4);
+
 }
 
 void BspWrite(char const *buf, uint32_t len) {
 #ifdef ENABLE_BSP_PRINT
-     HAL_UART_Transmit(&usart, (uint8_t *)buf, len, 0xFFFF);
+     WriteUart(buf, len);
 #endif
+}
+
+// Trace functions used by exception_handlers.c
+// BspInitTrace() must be called before BspTrace() is called.
+// Must be declared as C functions.
+extern "C" void BspInitTrace() {
+    InitUart();
+}
+extern "C" void BspTrace(char const *buf, uint32_t len) {
+    WriteUart(buf, len);
+    WriteUart("\r", 1);
 }
 
 uint32_t GetSystemMs() {
     return HAL_GetTick() * BSP_MSEC_PER_TICK;
+}
+
+uint32_t GetIdleCnt() {
+    uint32_t cnt = idleCnt;
+    idleCnt = 0;
+    return cnt;
 }
 
 // Override the one defined in stm32f7xx_hal.c.
@@ -121,8 +163,8 @@ void QXK::onIdle(void) {
     QF_INT_DISABLE();
     //GPIOA->BSRR |= (LED_LD2);        // turn LED[n] on
     //GPIOA->BSRR |= (LED_LD2 << 16);  // turn LED[n] off
+    idleCnt++;
     QF_INT_ENABLE();
-
 
 #if defined NDEBUG
     // Put the CPU and peripherals to the low-power mode.
@@ -148,10 +190,12 @@ extern "C" void Q_onAssert(char const * const module, int loc) {
     //
     // NOTE: add here your application-specific error handling
     //
-    (void)module;
-    (void)loc;
-
-    // Gallium - TBD
+    // Gallium
+    InitUart();
+    char buf[100];
+    snprintf(buf, sizeof(buf), "ASSERT FAILED in %s at line %d\n\r", module, loc);
+    WriteUart(buf, strlen(buf));
+    QF_INT_DISABLE();
     for (;;) {
     }
     //NVIC_SystemReset();
