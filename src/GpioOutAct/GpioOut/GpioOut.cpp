@@ -96,8 +96,8 @@ static void IncCurrHsmn() {
 // Set pwmTimer to NULL if PWM is not supported for an LED (no brightness control).
 // If pwmTimer is NULL, af and pwmChannel are don't-care, and mode must be OUTPUT_PP or OUTPUT_OD.
 GpioOut::Config const GpioOut::CONFIG[] = {
-    { PWM0, GPIOE, GPIO_PIN_8, true, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_AF1_TIM1, TIM1, TIM_CHANNEL_1, true, 100 },
-    { PWM1, GPIOB, GPIO_PIN_14, true, GPIO_MODE_AF_PP, GPIO_PULLUP, GPIO_AF1_TIM1, TIM1, TIM_CHANNEL_2, true, 100 },
+    { PWM0, GPIOE, GPIO_PIN_8, true, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_AF1_TIM1, TIM1, TIM_CHANNEL_1, true, TEST_GPIO_PATTERN_SET },
+    { PWM1, GPIOB, GPIO_PIN_14, true, GPIO_MODE_AF_PP, GPIO_PULLUP, GPIO_AF1_TIM1, TIM1, TIM_CHANNEL_2, true, TEST_GPIO_PATTERN_SET },
     // Add more LED here.
 };
 
