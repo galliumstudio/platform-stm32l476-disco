@@ -54,7 +54,7 @@ namespace APP {
     ADD_HSM(GPIO_IN_ACT, 1) \
     ADD_HSM(GPIO_IN, 1) \
     ADD_HSM(DEMO, 1) \
-    ADD_HSM(GPIO_OUT_ACT, 2) \
+    ADD_HSM(GPIO_OUT_ACT, 1) \
     ADD_HSM(GPIO_OUT, 2) \
     ADD_HSM(SIMPLE_ACT, 1) \
     ADD_HSM(SIMPLE_REG, 1) \
