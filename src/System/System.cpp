@@ -274,7 +274,7 @@ QState System::Starting2(System * const me, QEvt const * const e) {
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
-            // Placeholder.
+            // @todo Placeholder.
             Evt *evt = new Evt(NEXT, GET_HSMN());
             me->PostSync(evt);
             return Q_HANDLED();
@@ -295,7 +295,7 @@ QState System::Starting3(System * const me, QEvt const * const e) {
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
-            // Placeholder.
+            // @todo Placeholder.
             Evt *evt = new Evt(DONE, GET_HSMN());
             me->PostSync(evt);
             return Q_HANDLED();
@@ -353,7 +353,7 @@ QState System::Stopping1(System * const me, QEvt const * const e) {
     switch (e->sig) {
         case Q_ENTRY_SIG: {
             EVENT(e);
-            // Placeholder.
+            me->GetHsm().ResetOutSeq();
             Evt *evt = new Evt(NEXT, GET_HSMN());
             me->PostSync(evt);
             return Q_HANDLED();

@@ -182,7 +182,6 @@ void UartAct::InitUart() {
     NVIC_SetPriority(m_config->txDmaIrq, m_config->txDmaPrio);
     NVIC_EnableIRQ(m_config->txDmaIrq);
     // NVIC for DMA RX
-    // Gallium - disabled for testing.
     NVIC_SetPriority(m_config->rxDmaIrq, m_config->rxDmaPrio);
     NVIC_EnableIRQ(m_config->rxDmaIrq);
     // NVIC for USART

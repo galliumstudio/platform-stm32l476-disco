@@ -64,7 +64,7 @@ TIM_HandleTypeDef Periph::m_tim3Hal;
 // APB1CLK = HCLK -> TIM1CLK = HCLK = SystemCoreClock (See "clock tree" and "timer clock" in ref manual.)
 #define TIM1CLK             (SystemCoreClock)   // 80MHz
 #define TIM1_COUNTER_CLK    (20000000)          // 20MHz
-#define TIM1_PWM_FREQ       (20000)            // 10kHz
+#define TIM1_PWM_FREQ       (20000)             // 10kHz
 
 void Periph::SetupNormal() {
     __GPIOA_CLK_ENABLE();

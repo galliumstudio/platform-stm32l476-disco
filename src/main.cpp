@@ -227,6 +227,7 @@ void SystemClock_Config(void)
 static void Error_Handler(void)
 {
   /* Turn LED2 on */
+  BSP_LED_Init(LED4);
   BSP_LED_On(LED4);
   while(1)
   {
